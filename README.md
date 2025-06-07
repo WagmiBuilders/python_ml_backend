@@ -57,3 +57,9 @@ The prediction response will look like this:
 
 ![image](https://github.com/user-attachments/assets/935a0cb5-fab4-46d4-8f0f-b8def112c714)
 
+## Running the project
+
+1. You need `uv` installed.
+2. Navigate to the project directory and run `uv run uvicorn main:app --reload`
+3. The server will start on `http://localhost:8000`
+4. You can use `curl` or any other HTTP client to test the endpoints.
