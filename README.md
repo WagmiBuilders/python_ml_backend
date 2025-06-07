@@ -54,3 +54,6 @@ The prediction response will look like this:
 	]
 }
 ```
+
+![image](https://github.com/user-attachments/assets/935a0cb5-fab4-46d4-8f0f-b8def112c714)
+
