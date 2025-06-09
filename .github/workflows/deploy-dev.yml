@@ -32,7 +32,7 @@ jobs:
         env:
           APP_NAME: weather-api
         run: |
-          sshpass -p "${{ secrets.SSH_PASSWORD }}" ssh -o StrictHostKeyChecking=no "${{ secrets.USERNAME_AND_IP_ADDRESS }}" << 'EOF'
+          sshpass -p "${{ secrets.SSH_PASSWORD }}" ssh -p "${{ secrets.SSH_PORT }}" -o StrictHostKeyChecking=no "${{ secrets.USERNAME_AND_IP_ADDRESS }}" << 'EOF'
           APP_NAME="weather-api"
 
           echo "Stopping existing container if running..."
