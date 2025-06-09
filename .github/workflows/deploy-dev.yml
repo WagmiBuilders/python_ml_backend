@@ -43,5 +43,5 @@ jobs:
           sudo docker pull "${{ secrets.DOCKER_USERNAME }}/$APP_NAME:latest"
 
           echo "Starting new container..."
-          sudo docker run --name "$APP_NAME" -d -p 8000:8000 "${{ secrets.DOCKER_USERNAME }}/$APP_NAME:latest"
+          sudo docker run --name "$APP_NAME" -d -p 8084:8000 "${{ secrets.DOCKER_USERNAME }}/$APP_NAME:latest"
           EOF
