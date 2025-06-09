@@ -3,7 +3,8 @@ name: Build and Deploy FastAPI App
 on:
   push:
     branches:
-      - main  
+      - main 
+
 jobs:
   build-deploy:
     name: Build and Deploy FastAPI App
