@@ -9,4 +9,10 @@ wheels/
 # Virtual environments
 .venv
 
+
 weather_model.h5
+
+# Training files
+*.pkl
+*.h5
+
