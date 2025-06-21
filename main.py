@@ -16,19 +16,109 @@ from keras.layers import LSTM, Dense, Dropout, BatchNormalization
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 import shutil
-from typing import List, Dict
+from typing import List, Dict, Optional
 import os
+from pydantic import BaseModel, Field
+from fastapi import Body
+from datetime import date
+from enum import Enum
+
+
+class WindDirection(str, Enum):
+    N = "N"
+    NNE = "NNE"
+    NE = "NE"
+    ENE = "ENE"
+    E = "E"
+    ESE = "ESE"
+    SE = "SE"
+    SSE = "SSE"
+    S = "S"
+    SSW = "SSW"
+    SW = "SW"
+    WSW = "WSW"
+    W = "W"
+    WNW = "WNW"
+    NW = "NW"
+    NNW = "NNW"
+
+
+class YesNo(str, Enum):
+    Yes = "Yes"
+    No = "No"
+
 
 # Create FastAPI instance
 app = FastAPI()
 
-file_name = "data.csv"
+file_name = os.getenv("DATA_PATH", "data/data.csv")
 model_path = "weather_model.h5"
 scaler_path = "scaler.pkl"
+secret = "aaaa54121"
+
+# Ensure data directory exists
+os.makedirs(os.path.dirname(file_name), exist_ok=True)
 
 # Global variables to store model and scaler
 model = None
 scaler = None
+
+# Add Pydantic model for record validation
+
+
+class WeatherRecord(BaseModel):
+    Date: date
+    Location: str
+    MinTemp: float
+    MaxTemp: float
+    Rainfall: float
+    Evaporation: Optional[float] = None
+    Sunshine: Optional[float] = None
+    WindGustDir: WindDirection
+    WindGustSpeed: float
+    WindDir9am: WindDirection
+    WindDir3pm: WindDirection
+    WindSpeed9am: float
+    WindSpeed3pm: float
+    Humidity9am: float = Field(ge=0, le=100)
+    Humidity3pm: float = Field(ge=0, le=100)
+    Pressure9am: float
+    Pressure3pm: float
+    Cloud9am: float = Field(ge=0, le=9)
+    Cloud3pm: float = Field(ge=0, le=9)
+    Temp9am: float
+    Temp3pm: float
+    RainToday: YesNo
+    RainTomorrow: Optional[YesNo] = None
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "Date": "2023-01-01",
+                "Location": "Sydney",
+                "MinTemp": 15.0,
+                "MaxTemp": 25.0,
+                "Rainfall": 0.0,
+                "Evaporation": 4.2,
+                "Sunshine": 8.5,
+                "WindGustDir": "SE",
+                "WindGustSpeed": 35.0,
+                "WindDir9am": "E",
+                "WindDir3pm": "SE",
+                "WindSpeed9am": 10.0,
+                "WindSpeed3pm": 15.0,
+                "Humidity9am": 75.0,
+                "Humidity3pm": 60.0,
+                "Pressure9am": 1015.0,
+                "Pressure3pm": 1013.0,
+                "Cloud9am": 4.0,
+                "Cloud3pm": 6.0,
+                "Temp9am": 18.0,
+                "Temp3pm": 23.0,
+                "RainToday": "No",
+                "RainTomorrow": "No"
+            }
+        }
 
 
 def preprocess_data(df: pd.DataFrame):
@@ -57,7 +147,8 @@ def preprocess_data(df: pd.DataFrame):
     # Handle other missing values (median imputation)
     cols_to_fill = ["Humidity3pm", "Pressure9am", "Cloud3pm", "WindGustSpeed"]
     for col in cols_to_fill:
-        df[col] = df.groupby("Location")[col].transform(lambda x: x.fillna(x.median()))
+        df[col] = df.groupby("Location")[col].transform(
+            lambda x: x.fillna(x.median()))
 
     # Final cleanup
     df = df.dropna()
@@ -84,7 +175,7 @@ def create_sequences(df: pd.DataFrame):
         target_data = group[target].values
 
         for i in range(len(group_data) - sequence_length):
-            X.append(group_data[i : i + sequence_length])
+            X.append(group_data[i: i + sequence_length])
             y.append(target_data[i + sequence_length])
 
     return np.array(X), np.array(y).astype(int), features
@@ -122,7 +213,7 @@ def build_model(input_shape):
 
 @app.get("/")
 async def root():
-    return {"message": "Weather Prediction API"}
+    return {"message": "Weather Prediction API - a"}
 
 
 @app.post("/upload")
@@ -137,7 +228,10 @@ async def upload_data(file: UploadFile = File(...)):
 
 
 @app.post("/train")
-async def train_model():
+async def train_model(sec: str):
+    if sec != secret:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     try:
         # Load and preprocess data
         df = pd.read_csv(file_name)
@@ -210,7 +304,8 @@ async def predict(location: str, last_n_days: int = 7):
         # Load model and scaler if not loaded
         if model is None:
             if not os.path.exists(model_path):
-                raise HTTPException(status_code=400, detail="Model not trained yet")
+                raise HTTPException(
+                    status_code=400, detail="Model not trained yet")
             model = load_model(model_path)
 
         if scaler is None:
@@ -248,8 +343,10 @@ async def predict(location: str, last_n_days: int = 7):
         last_features = loc_df[features].tail(last_n_days).values
 
         # Scale features
-        scaled_features = scaler.transform(last_features.reshape(-1, len(features)))
-        scaled_sequence = scaled_features.reshape(1, last_n_days, len(features))
+        scaled_features = scaler.transform(
+            last_features.reshape(-1, len(features)))
+        scaled_sequence = scaled_features.reshape(
+            1, last_n_days, len(features))
 
         predictions = []
         confidence = []
@@ -280,9 +377,55 @@ async def predict(location: str, last_n_days: int = 7):
         return {
             "location": location,
             "forecast": [
-                {"date": date, "rain_predicted": bool(pred), "confidence": conf}
+                {"date": date, "rain_predicted": bool(
+                    pred), "confidence": conf}
                 for date, pred, conf in zip(forecast_dates, predictions, confidence)
             ],
         }
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/addRec")
+async def add_record(record: WeatherRecord):
+    try:
+        # Read existing CSV
+        df = pd.read_csv(file_name)
+
+        # Convert record to dictionary
+        record_dict = record.dict()
+
+        # Additional validations
+        if record_dict["MaxTemp"] < record_dict["MinTemp"]:
+            raise HTTPException(
+                status_code=400,
+                detail="MaxTemp cannot be less than MinTemp"
+            )
+
+        if record_dict["Temp3pm"] > record_dict["MaxTemp"] or record_dict["Temp9am"] < record_dict["MinTemp"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Temperature readings must be within MinTemp and MaxTemp range"
+            )
+
+        # Convert date to string format for CSV
+        record_dict["Date"] = record_dict["Date"].strftime("%Y-%m-%d")
+
+        # Append new record
+        df = pd.concat([df, pd.DataFrame([record_dict])], ignore_index=True)
+
+        # Sort by date and location
+        df["Date"] = pd.to_datetime(df["Date"])
+        df = df.sort_values(["Location", "Date"])
+
+        # Save back to CSV
+        df.to_csv(file_name, index=False)
+
+        return {
+            "message": "Record added successfully",
+            "record": record_dict
+        }
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=str(e))

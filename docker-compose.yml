@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/.venv/  # Don't sync virtual environment
+      - /app/__pycache__/  # Don't sync Python cache
+      - weather_data:/app/data:rw  # Persistent volume for data with read-write permissions
+    environment:
+      - PYTHONUNBUFFERED=1  # Ensures Python output is sent straight to terminal
+      - DATA_PATH=/app/data/data.csv  # Environment variable for data file location
+    user: "1000:1000"  # Run as non-root user
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  weather_data:  # Persistent volume for data storage
