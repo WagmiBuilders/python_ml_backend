@@ -48,7 +48,6 @@ class YesNo(str, Enum):
     No = "No"
 
 
-# Create FastAPI instance
 app = FastAPI()
 
 file_name = os.getenv("DATA_PATH", "data/data.csv")
@@ -56,14 +55,10 @@ model_path = "weather_model.h5"
 scaler_path = "scaler.pkl"
 secret = "aaaa54121"
 
-# Ensure data directory exists
 os.makedirs(os.path.dirname(file_name), exist_ok=True)
 
-# Global variables to store model and scaler
 model = None
 scaler = None
-
-# Add Pydantic model for record validation
 
 
 class WeatherRecord(BaseModel):
@@ -122,14 +117,11 @@ class WeatherRecord(BaseModel):
 
 
 def preprocess_data(df: pd.DataFrame):
-    # Convert and sort dates
     df["Date"] = pd.to_datetime(df["Date"])
     df = df.sort_values(["Location", "Date"])
 
-    # Initial cleanup: Drop rows with missing RainTomorrow
     df = df.dropna(subset=["RainTomorrow"])
 
-    # Forward-fill within locations
     df = df.set_index(["Location", "Date"])
     df = df.groupby("Location").ffill().reset_index()
 
@@ -219,7 +211,6 @@ async def root():
 @app.post("/upload")
 async def upload_data(file: UploadFile = File(...)):
     try:
-        # Save the uploaded file
         with open(file_name, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         return {"message": "Data file updated successfully"}
@@ -233,14 +224,11 @@ async def train_model(sec: str):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
-        # Load and preprocess data
         df = pd.read_csv(file_name)
         df = preprocess_data(df)
 
-        # Create sequences
         X, y, features = create_sequences(df)
 
-        # Scale features
         global scaler
         n_samples, n_timesteps, n_features = X.shape
         X_flat = X.reshape(-1, n_features)
@@ -248,25 +236,21 @@ async def train_model(sec: str):
         X_flat_scaled = scaler.fit_transform(X_flat)
         X_scaled = X_flat_scaled.reshape(n_samples, n_timesteps, n_features)
 
-        # Train-test split
         X_train, X_test, y_train, y_test = train_test_split(
             X_scaled, y, test_size=0.2, random_state=42, stratify=y
         )
 
-        # Build and train model
         global model
         model = build_model((n_timesteps, n_features))
         early_stop = EarlyStopping(
             monitor="val_loss", patience=5, restore_best_weights=True
         )
 
-        # Calculate class weights
         class_weights = compute_class_weight(
             class_weight="balanced", classes=np.unique(y), y=y
         )
         class_weight_dict = dict(enumerate(class_weights))
 
-        # Train
         history = model.fit(
             X_train,
             y_train,
@@ -278,13 +262,11 @@ async def train_model(sec: str):
             verbose=1,
         )
 
-        # Save model and scaler
         model.save(model_path)
         import joblib
 
         joblib.dump(scaler, scaler_path)
 
-        # Evaluate
         test_results = model.evaluate(X_test, y_test, verbose=0)
         return {
             "message": "Model trained successfully",
@@ -301,7 +283,6 @@ async def predict(location: str, last_n_days: int = 7):
     try:
         global model, scaler
 
-        # Load model and scaler if not loaded
         if model is None:
             if not os.path.exists(model_path):
                 raise HTTPException(
@@ -315,11 +296,9 @@ async def predict(location: str, last_n_days: int = 7):
 
             scaler = joblib.load(scaler_path)
 
-        # Load and preprocess data
         df = pd.read_csv(file_name)
         df = preprocess_data(df)
 
-        # Get location data
         loc_df = df[df["Location"] == location]
         if len(loc_df) == 0:
             raise HTTPException(
@@ -338,11 +317,9 @@ async def predict(location: str, last_n_days: int = 7):
             "Temp3pm",
         ]
 
-        # Get last available dates
         last_dates = loc_df["Date"].tail(last_n_days).tolist()
         last_features = loc_df[features].tail(last_n_days).values
 
-        # Scale features
         scaled_features = scaler.transform(
             last_features.reshape(-1, len(features)))
         scaled_sequence = scaled_features.reshape(
@@ -356,18 +333,15 @@ async def predict(location: str, last_n_days: int = 7):
             pred_prob = float(model.predict(current_sequence, verbose=0)[0][0])
             pred = 1 if pred_prob >= 0.5 else 0
 
-            # Create new day data
             new_day = current_sequence[0, -1].copy()
-            new_day[3] = pred  # Update RainToday with prediction
+            new_day[3] = pred
 
-            # Update sequence
             current_sequence = np.roll(current_sequence, -1, axis=1)
             current_sequence[0, -1] = new_day
 
             predictions.append(pred)
             confidence.append(pred_prob)
 
-        # Generate forecast dates
         last_date = pd.to_datetime(last_dates[-1])
         forecast_dates = [
             (last_date + datetime.timedelta(days=i + 1)).strftime("%Y-%m-%d")
@@ -389,13 +363,10 @@ async def predict(location: str, last_n_days: int = 7):
 @app.post("/addRec")
 async def add_record(record: WeatherRecord):
     try:
-        # Read existing CSV
         df = pd.read_csv(file_name)
 
-        # Convert record to dictionary
         record_dict = record.dict()
 
-        # Additional validations
         if record_dict["MaxTemp"] < record_dict["MinTemp"]:
             raise HTTPException(
                 status_code=400,
@@ -408,17 +379,13 @@ async def add_record(record: WeatherRecord):
                 detail="Temperature readings must be within MinTemp and MaxTemp range"
             )
 
-        # Convert date to string format for CSV
         record_dict["Date"] = record_dict["Date"].strftime("%Y-%m-%d")
 
-        # Append new record
         df = pd.concat([df, pd.DataFrame([record_dict])], ignore_index=True)
 
-        # Sort by date and location
         df["Date"] = pd.to_datetime(df["Date"])
         df = df.sort_values(["Location", "Date"])
 
-        # Save back to CSV
         df.to_csv(file_name, index=False)
 
         return {

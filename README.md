@@ -1,17 +1,15 @@
 ## Running the project
 
-1. You need `uv` installed.
+1. You need to have docker installed.
 2. Clone the git repo
 3. Navigate to the project directory and run the following commands:
 
 ```bash
-uv venv
+docker-compose up --build
 
-source .venv/bin/activate # for windows use .venv\Scripts\activate
+docker cp data.csv python_ml_backend-web-1:/app/data/data.csv
 
-uv pip install -r pyproject.toml
-
-uv run uvicorn main:app --reload
+docker exec python_ml_backend-web-1 chmod 666 /app/data/data.csv
 ```
 
 4. The server will start on `http://localhost:8000`
