@@ -1,14 +1,9 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import compute_class_weight
-from sklearn.metrics import confusion_matrix
-from sklearn.metrics import classification_report
 import datetime
 import tensorflow as tf
 from keras.models import Sequential, load_model
@@ -16,10 +11,9 @@ from keras.layers import LSTM, Dense, Dropout, BatchNormalization
 from keras.optimizers import Adam
 from keras.callbacks import EarlyStopping
 import shutil
-from typing import List, Dict, Optional
+from typing import Optional
 import os
 from pydantic import BaseModel, Field
-from fastapi import Body
 from datetime import date
 from enum import Enum
 
